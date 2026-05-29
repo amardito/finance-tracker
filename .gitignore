@@ -13,3 +13,4 @@ coverage
 *.tsbuildinfo
 .pnpm-store
 .pnpm-debug.log*
+logs.*.txt
