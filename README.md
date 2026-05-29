@@ -79,8 +79,7 @@ pnpm -r run test
 1. **Create a new Railway project** and connect this repo.
 2. **Add the PostgreSQL plugin.** Railway will expose `DATABASE_URL` to other services in the project.
 3. **Create the `api` service**:
-   - Source: this repo (root)
-   - Railway auto-detects `railway.json` at the repo root, which points at `apps/api/Dockerfile`. No manual Dockerfile selection needed.
+   - Source: this repo (root). Railway auto-detects the root `Dockerfile` (configured via `railway.json`).
    - Environment variables:
      - `NODE_ENV=production`
      - `DATABASE_URL` → reference Postgres plugin's variable
@@ -94,8 +93,8 @@ pnpm -r run test
    - Health check: `/api/health`
    - Generate a public domain (e.g. `api-xxx.up.railway.app`)
 4. **Create the `web` service** (in the same Railway project):
-   - Source: this repo (root)
-   - Root directory: `apps/web` — Railway will pick up `apps/web/railway.json` which points at `apps/web/Dockerfile`.
+   - Source: this repo (root). Leave Root Directory unset / blank.
+   - In the service's Settings → Build, set **Dockerfile Path** to `Dockerfile.web` (or set env var `RAILWAY_DOCKERFILE_PATH=Dockerfile.web`).
    - Build-time variable: `VITE_API_URL=https://api-xxx.up.railway.app`
    - Generate a public domain (e.g. `web-xxx.up.railway.app`)
 5. **Update the API's `WEB_ORIGIN`** to the web service's public URL so CORS works, then redeploy the API.
