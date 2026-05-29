@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 
 export interface Account {
@@ -81,16 +81,25 @@ export interface Goal {
 }
 
 export function useAccounts() {
-  return useQuery({ queryKey: ['accounts'], queryFn: () => api.get<Account[]>('/api/accounts') });
+  return useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => api.get<Account[]>('/api/accounts'),
+    placeholderData: keepPreviousData,
+  });
 }
 export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get<Category[]>('/api/categories'),
+    placeholderData: keepPreviousData,
   });
 }
 export function useTags() {
-  return useQuery({ queryKey: ['tags'], queryFn: () => api.get<Tag[]>('/api/tags') });
+  return useQuery({
+    queryKey: ['tags'],
+    queryFn: () => api.get<Tag[]>('/api/tags'),
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useTransactions(params: Record<string, string | number | undefined>) {
@@ -102,6 +111,7 @@ export function useTransactions(params: Record<string, string | number | undefin
       api.get<{ total: number; page: number; limit: number; items: Transaction[] }>(
         `/api/transactions?${qs.toString()}`,
       ),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -109,6 +119,7 @@ export function useBudgetProgress() {
   return useQuery({
     queryKey: ['budgets', 'progress'],
     queryFn: () => api.get<BudgetProgress[]>('/api/budgets/progress'),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -116,11 +127,16 @@ export function useRecurring() {
   return useQuery({
     queryKey: ['recurring'],
     queryFn: () => api.get<RecurringRule[]>('/api/recurring'),
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useGoals() {
-  return useQuery({ queryKey: ['goals'], queryFn: () => api.get<Goal[]>('/api/goals') });
+  return useQuery({
+    queryKey: ['goals'],
+    queryFn: () => api.get<Goal[]>('/api/goals'),
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useSummary(range: { from?: string; to?: string }) {
@@ -139,6 +155,7 @@ export function useSummary(range: { from?: string; to?: string }) {
         netWorth: string;
         transactionCount: number;
       }>(`/api/reports/summary?${qs.toString()}`),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -152,6 +169,7 @@ export function useCashflow(range: { from?: string; to?: string }) {
       api.get<{ date: string; income: string; expense: string; net: string }[]>(
         `/api/reports/cashflow?${qs.toString()}`,
       ),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -165,6 +183,7 @@ export function useByCategory(range: { from?: string; to?: string }) {
       api.get<
         { categoryId: string; category: Category | null; type: string; amount: string }[]
       >(`/api/reports/by-category?${qs.toString()}`),
+    placeholderData: keepPreviousData,
   });
 }
 

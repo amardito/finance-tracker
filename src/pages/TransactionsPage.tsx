@@ -26,6 +26,13 @@ interface FormState {
   tagIds: string[];
 }
 
+interface TxListResponse {
+  total: number;
+  page: number;
+  limit: number;
+  items: Transaction[];
+}
+
 const blank = (): FormState => ({
   type: 'EXPENSE',
   accountId: '',
@@ -75,24 +82,66 @@ export function TransactionsPage() {
       if (f.id) return api.patch(`/api/transactions/${f.id}`, payload);
       return api.post('/api/transactions', payload);
     },
+    onMutate: async (f) => {
+      await qc.cancelQueries({ queryKey: ['transactions'] });
+      const snapshots = qc.getQueriesData<TxListResponse>({ queryKey: ['transactions'] });
+      const optimistic = buildOptimisticTransaction(f, accounts.data ?? [], categories.data ?? [], tags.data ?? []);
+      qc.setQueriesData<TxListResponse>({ queryKey: ['transactions'] }, (old) => {
+        if (!old) return old;
+        if (f.id) {
+          return {
+            ...old,
+            items: old.items.map((tx) => (tx.id === f.id ? { ...optimistic, id: f.id } : tx)),
+          };
+        }
+        return {
+          ...old,
+          total: old.total + 1,
+          items: [optimistic, ...old.items].slice(0, old.limit),
+        };
+      });
+      setDrawer(null);
+      return { snapshots };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
       qc.invalidateQueries({ queryKey: ['accounts'] });
       qc.invalidateQueries({ queryKey: ['budgets'] });
       toast.success('Saved');
-      setDrawer(null);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error, _vars, ctx) => {
+      ctx?.snapshots?.forEach(([key, data]) => qc.setQueryData(key, data));
+      toast.error(err.message);
+    },
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/transactions/${id}`),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['transactions'] });
+      const snapshots = qc.getQueriesData<TxListResponse>({ queryKey: ['transactions'] });
+      qc.setQueriesData<TxListResponse>({ queryKey: ['transactions'] }, (old) => {
+        if (!old) return old;
+        const exists = old.items.some((tx) => tx.id === id);
+        if (!exists) return old;
+        return {
+          ...old,
+          total: Math.max(0, old.total - 1),
+          items: old.items.filter((tx) => tx.id !== id),
+        };
+      });
+      return { snapshots };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
       qc.invalidateQueries({ queryKey: ['accounts'] });
       toast.success('Deleted');
+    },
+    onError: (err: Error, _id, ctx) => {
+      ctx?.snapshots?.forEach(([key, data]) => qc.setQueryData(key, data));
+      toast.error(err.message);
     },
   });
 
@@ -139,6 +188,7 @@ export function TransactionsPage() {
           </button>
         </div>
       </div>
+      {list.isFetching && <p className="text-xs text-muted inline-flex items-center gap-2"><span className="spinner" />Updating results...</p>}
 
       <div className="card grid grid-cols-2 md:grid-cols-6 gap-2">
         <select
@@ -211,6 +261,17 @@ export function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
+            {list.isPending && !list.data &&
+              Array.from({ length: 10 }).map((_, i) => (
+                <tr key={`sk-${i}`} className="border-b border-border">
+                  <td className="p-3"><div className="skeleton h-4 w-24" /></td>
+                  <td className="p-3"><div className="skeleton h-4 w-40" /></td>
+                  <td className="p-3"><div className="skeleton h-4 w-28" /></td>
+                  <td className="p-3"><div className="skeleton h-4 w-24" /></td>
+                  <td className="p-3"><div className="skeleton h-4 w-20 ml-auto" /></td>
+                  <td className="p-3" />
+                </tr>
+              ))}
             {(list.data?.items ?? []).map((t) => (
               <tr key={t.id} className="border-b border-border hover:bg-bg">
                 <td className="p-3">{format(new Date(t.date), 'MMM d, yyyy')}</td>
@@ -253,12 +314,13 @@ export function TransactionsPage() {
                 </td>
                 <td className="p-3 text-right">
                   <button
+                    disabled={remove.isPending && remove.variables === t.id}
                     className="text-muted hover:text-danger"
                     onClick={() => {
                       if (confirm('Delete this transaction?')) remove.mutate(t.id);
                     }}
                   >
-                    ✕
+                    {remove.isPending && remove.variables === t.id ? '...' : '✕'}
                   </button>
                 </td>
               </tr>
@@ -436,7 +498,7 @@ export function TransactionsPage() {
                   className="btn-primary"
                   disabled={createOrUpdate.isPending}
                 >
-                  Save
+                  {createOrUpdate.isPending ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
@@ -445,4 +507,31 @@ export function TransactionsPage() {
       )}
     </div>
   );
+}
+
+function buildOptimisticTransaction(
+  form: FormState,
+  accounts: { id: string; name: string; type: string }[],
+  categories: { id: string; name: string; color: string; type: string }[],
+  tags: { id: string; name: string; color: string }[],
+): Transaction {
+  const account = accounts.find((a) => a.id === form.accountId);
+  const category = categories.find((c) => c.id === form.categoryId);
+  const selectedTags = tags.filter((t) => form.tagIds.includes(t.id));
+  return {
+    id: form.id ?? `tmp-${Date.now()}`,
+    accountId: form.accountId,
+    categoryId: form.categoryId,
+    amount: form.amount,
+    type: form.type,
+    date: Number.isNaN(new Date(form.date).valueOf()) ? new Date().toISOString() : new Date(form.date).toISOString(),
+    note: form.note || undefined,
+    account: account
+      ? { id: account.id, name: account.name, type: account.type }
+      : { id: form.accountId, name: 'Unknown account', type: 'UNKNOWN' },
+    category: category
+      ? { id: category.id, name: category.name, color: category.color, type: category.type }
+      : { id: form.categoryId, name: 'Unknown category', color: '#94a3b8', type: form.type },
+    tags: selectedTags,
+  };
 }

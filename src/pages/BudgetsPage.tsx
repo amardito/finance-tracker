@@ -24,19 +24,59 @@ export function BudgetsPage() {
 
   const create = useMutation({
     mutationFn: () => api.post('/api/budgets', form),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['budgets', 'progress'] });
+      const previous = qc.getQueryData<typeof progress.data>(['budgets', 'progress']);
+      const cat = expenseCats.find((c) => c.id === form.categoryId);
+      if (cat) {
+        qc.setQueryData(['budgets', 'progress'], (old: typeof progress.data) => {
+          const items = old ?? [];
+          const optimistic = {
+            id: `tmp-${Date.now()}`,
+            categoryId: form.categoryId,
+            category: cat,
+            period: form.period,
+            amount: form.amount,
+            spent: '0',
+            remaining: form.amount,
+            ratio: 0,
+            periodStart: form.startDate,
+            periodEnd: form.startDate,
+            status: 'OK' as const,
+          };
+          return [optimistic, ...items];
+        });
+      }
+      setOpen(false);
+      return { previous };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['budgets'] });
       toast.success('Budget created');
-      setOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, _v, ctx) => {
+      qc.setQueryData(['budgets', 'progress'], ctx?.previous);
+      toast.error(e.message);
+    },
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/budgets/${id}`),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['budgets', 'progress'] });
+      const previous = qc.getQueryData<typeof progress.data>(['budgets', 'progress']);
+      qc.setQueryData(['budgets', 'progress'], (old: typeof progress.data) =>
+        (old ?? []).filter((b) => b.id !== id),
+      );
+      return { previous };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['budgets'] });
       toast.success('Deleted');
+    },
+    onError: (e: Error, _id, ctx) => {
+      qc.setQueryData(['budgets', 'progress'], ctx?.previous);
+      toast.error(e.message);
     },
   });
 
@@ -55,8 +95,18 @@ export function BudgetsPage() {
           + New budget
         </button>
       </div>
+      {progress.isFetching && <p className="text-xs text-muted inline-flex items-center gap-2"><span className="spinner" />Refreshing budgets...</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {progress.isPending && !progress.data &&
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={`sk-${i}`} className="card space-y-3">
+              <div className="skeleton h-5 w-28" />
+              <div className="skeleton h-4 w-40" />
+              <div className="skeleton h-2 w-full" />
+              <div className="skeleton h-3 w-24" />
+            </div>
+          ))}
         {(progress.data ?? []).map((b) => (
           <div key={b.id} className="card">
             <div className="flex justify-between items-start mb-2">
@@ -64,8 +114,12 @@ export function BudgetsPage() {
                 <div className="font-semibold">{b.category.name}</div>
                 <div className="text-xs text-muted">{b.period}</div>
               </div>
-              <button onClick={() => remove.mutate(b.id)} className="text-muted hover:text-danger">
-                ✕
+              <button
+                disabled={remove.isPending && remove.variables === b.id}
+                onClick={() => remove.mutate(b.id)}
+                className="text-muted hover:text-danger disabled:opacity-50"
+              >
+                {remove.isPending && remove.variables === b.id ? '...' : '✕'}
               </button>
             </div>
             <div className="text-sm mb-1 flex justify-between">
@@ -167,7 +221,7 @@ export function BudgetsPage() {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={create.isPending}>
-                  Create
+                  {create.isPending ? 'Creating...' : 'Create'}
                 </button>
               </div>
             </form>

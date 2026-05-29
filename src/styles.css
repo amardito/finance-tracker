@@ -39,6 +39,22 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes spin-fast {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
@@ -63,5 +79,13 @@ body {
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .skeleton {
+    @apply rounded-md bg-border;
+    animation: pulse-soft 1.2s ease-in-out infinite;
+  }
+  .spinner {
+    @apply inline-block h-4 w-4 rounded-full border-2 border-border border-t-primary;
+    animation: spin-fast 0.7s linear infinite;
   }
 }

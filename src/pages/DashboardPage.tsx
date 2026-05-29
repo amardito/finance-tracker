@@ -38,6 +38,7 @@ export function DashboardPage() {
   const byCat = useByCategory(range);
   const budgets = useBudgetProgress();
   const recent = useTransactions({ limit: 8, page: 1 });
+  const isRefreshing = [accounts, summary, cashflow, byCat, budgets, recent].some((q) => q.isFetching);
 
   const expenseCats = (byCat.data ?? []).filter((r) => r.type === 'EXPENSE');
 
@@ -48,56 +49,77 @@ export function DashboardPage() {
         <p className="text-muted text-sm">
           {format(now, 'MMMM yyyy')} overview
         </p>
+        {isRefreshing && <p className="mt-2 text-xs text-muted inline-flex items-center gap-2"><span className="spinner" />Refreshing data...</p>}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat title="Net Worth" value={summary.data?.netWorth} currency={currency} />
-        <Stat title="Income (MTD)" value={summary.data?.income} currency={currency} tone="success" />
-        <Stat title="Expense (MTD)" value={summary.data?.expense} currency={currency} tone="danger" />
-        <Stat title="Net (MTD)" value={summary.data?.net} currency={currency} />
+        <Stat title="Net Worth" value={summary.data?.netWorth} currency={currency} loading={summary.isPending} />
+        <Stat
+          title="Income (MTD)"
+          value={summary.data?.income}
+          currency={currency}
+          tone="success"
+          loading={summary.isPending}
+        />
+        <Stat
+          title="Expense (MTD)"
+          value={summary.data?.expense}
+          currency={currency}
+          tone="danger"
+          loading={summary.isPending}
+        />
+        <Stat title="Net (MTD)" value={summary.data?.net} currency={currency} loading={summary.isPending} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="card lg:col-span-2">
           <h3 className="font-semibold mb-2">Cashflow</h3>
-          <div style={{ width: '100%', height: 260 }}>
-            <ResponsiveContainer>
-              <BarChart data={cashflow.data ?? []}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="date" tickFormatter={(s) => s.slice(5)} fontSize={12} />
-                <YAxis fontSize={12} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="income" fill="rgb(16 185 129)" />
-                <Bar dataKey="expense" fill="rgb(239 68 68)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {cashflow.isPending && !cashflow.data ? (
+            <div className="skeleton" style={{ width: '100%', height: 260 }} />
+          ) : (
+            <div style={{ width: '100%', height: 260 }}>
+              <ResponsiveContainer>
+                <BarChart data={cashflow.data ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis dataKey="date" tickFormatter={(s) => s.slice(5)} fontSize={12} />
+                  <YAxis fontSize={12} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="income" fill="rgb(16 185 129)" />
+                  <Bar dataKey="expense" fill="rgb(239 68 68)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
         <div className="card">
           <h3 className="font-semibold mb-2">Expenses by category</h3>
-          <div style={{ width: '100%', height: 260 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={expenseCats.map((r) => ({
-                    name: r.category?.name ?? 'Unknown',
-                    value: Number(r.amount),
-                    color: r.category?.color ?? '#94a3b8',
-                  }))}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={45}
-                  outerRadius={80}
-                >
-                  {expenseCats.map((r, i) => (
-                    <Cell key={i} fill={r.category?.color ?? '#94a3b8'} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => money(v, currency)} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {byCat.isPending && !byCat.data ? (
+            <div className="skeleton" style={{ width: '100%', height: 260 }} />
+          ) : (
+            <div style={{ width: '100%', height: 260 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie
+                    data={expenseCats.map((r) => ({
+                      name: r.category?.name ?? 'Unknown',
+                      value: Number(r.amount),
+                      color: r.category?.color ?? '#94a3b8',
+                    }))}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={45}
+                    outerRadius={80}
+                  >
+                    {expenseCats.map((r, i) => (
+                      <Cell key={i} fill={r.category?.color ?? '#94a3b8'} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => money(v, currency)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
 
@@ -107,7 +129,16 @@ export function DashboardPage() {
             <h3 className="font-semibold">Budgets</h3>
             <Link to="/budgets" className="text-sm text-primary">Manage →</Link>
           </div>
-          {(budgets.data?.length ?? 0) === 0 ? (
+          {budgets.isPending && !budgets.data ? (
+            <ul className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <li key={i} className="space-y-2">
+                  <div className="skeleton h-4 w-40" />
+                  <div className="skeleton h-2 w-full" />
+                </li>
+              ))}
+            </ul>
+          ) : (budgets.data?.length ?? 0) === 0 ? (
             <p className="text-sm text-muted">No budgets yet.</p>
           ) : (
             <ul className="space-y-3">
@@ -142,7 +173,19 @@ export function DashboardPage() {
             <h3 className="font-semibold">Recent transactions</h3>
             <Link to="/transactions" className="text-sm text-primary">View all →</Link>
           </div>
-          {(recent.data?.items.length ?? 0) === 0 ? (
+          {recent.isPending && !recent.data ? (
+            <ul className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <li key={i} className="flex justify-between items-center">
+                  <div className="space-y-2">
+                    <div className="skeleton h-4 w-40" />
+                    <div className="skeleton h-3 w-24" />
+                  </div>
+                  <div className="skeleton h-4 w-20" />
+                </li>
+              ))}
+            </ul>
+          ) : (recent.data?.items.length ?? 0) === 0 ? (
             <p className="text-sm text-muted">No transactions yet.</p>
           ) : (
             <ul className="divide-y divide-border">
@@ -171,7 +214,17 @@ export function DashboardPage() {
 
       <div className="card">
         <h3 className="font-semibold mb-2">Accounts</h3>
-        {(accounts.data?.length ?? 0) === 0 ? (
+        {accounts.isPending && !accounts.data ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-md border border-border p-3 space-y-2">
+                <div className="skeleton h-3 w-12" />
+                <div className="skeleton h-4 w-24" />
+                <div className="skeleton h-6 w-28" />
+              </div>
+            ))}
+          </div>
+        ) : (accounts.data?.length ?? 0) === 0 ? (
           <p className="text-sm text-muted">
             No accounts yet. <Link to="/settings" className="text-primary">Add one →</Link>
           </p>
@@ -196,11 +249,13 @@ function Stat({
   value,
   currency,
   tone,
+  loading,
 }: {
   title: string;
   value?: string;
   currency: string;
   tone?: 'success' | 'danger';
+  loading?: boolean;
 }) {
   return (
     <div className="card">
@@ -211,7 +266,7 @@ function Stat({
           (tone === 'success' ? 'text-success' : tone === 'danger' ? 'text-danger' : '')
         }
       >
-        {value !== undefined ? money(value, currency) : '—'}
+        {loading && value === undefined ? <span className="skeleton inline-block h-8 w-28 align-middle" /> : value !== undefined ? money(value, currency) : '—'}
       </div>
     </div>
   );

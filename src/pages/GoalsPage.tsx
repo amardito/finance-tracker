@@ -24,32 +24,88 @@ export function GoalsPage() {
         targetAmount: form.targetAmount,
         deadline: form.deadline || undefined,
       }),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['goals'] });
+      const previous = qc.getQueryData<typeof goals.data>(['goals']);
+      const optimistic = {
+        id: `tmp-${Date.now()}`,
+        name: form.name,
+        targetAmount: form.targetAmount,
+        currentAmount: '0',
+        deadline: form.deadline || null,
+        accountId: null,
+        status: 'ACTIVE' as const,
+        contributions: [],
+      };
+      qc.setQueryData(['goals'], (old: typeof goals.data) => [optimistic, ...(old ?? [])]);
+      setOpen(false);
+      setForm({ name: '', targetAmount: '', deadline: '' });
+      return { previous };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['goals'] });
       toast.success('Goal created');
-      setOpen(false);
-      setForm({ name: '', targetAmount: '', deadline: '' });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, _v, ctx) => {
+      qc.setQueryData(['goals'], ctx?.previous);
+      toast.error(e.message);
+    },
   });
 
   const contributeMut = useMutation({
     mutationFn: () =>
       api.post(`/api/goals/${contribute!.id}/contribute`, { amount: contribAmount }),
+    onMutate: async () => {
+      if (!contribute) return;
+      await qc.cancelQueries({ queryKey: ['goals'] });
+      const previous = qc.getQueryData<typeof goals.data>(['goals']);
+      qc.setQueryData(['goals'], (old: typeof goals.data) =>
+        (old ?? []).map((g) =>
+          g.id === contribute.id
+            ? {
+                ...g,
+                currentAmount: String(Number(g.currentAmount) + Number(contribAmount || 0)),
+                contributions: [
+                  ...g.contributions,
+                  {
+                    id: `tmp-${Date.now()}`,
+                    amount: contribAmount,
+                    date: new Date().toISOString(),
+                  },
+                ],
+              }
+            : g,
+        ),
+      );
+      setContribute(null);
+      setContribAmount('');
+      return { previous };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['goals'] });
       toast.success('Contribution added');
-      setContribute(null);
-      setContribAmount('');
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, _v, ctx) => {
+      qc.setQueryData(['goals'], ctx?.previous);
+      toast.error(e.message);
+    },
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/goals/${id}`),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['goals'] });
+      const previous = qc.getQueryData<typeof goals.data>(['goals']);
+      qc.setQueryData(['goals'], (old: typeof goals.data) => (old ?? []).filter((g) => g.id !== id));
+      return { previous };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['goals'] });
       toast.success('Deleted');
+    },
+    onError: (e: Error, _v, ctx) => {
+      qc.setQueryData(['goals'], ctx?.previous);
+      toast.error(e.message);
     },
   });
 
@@ -61,8 +117,18 @@ export function GoalsPage() {
           + New goal
         </button>
       </div>
+      {goals.isFetching && <p className="text-xs text-muted inline-flex items-center gap-2"><span className="spinner" />Refreshing goals...</p>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {goals.isPending && !goals.data &&
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={`sk-${i}`} className="card space-y-3">
+              <div className="skeleton h-5 w-32" />
+              <div className="skeleton h-4 w-40" />
+              <div className="skeleton h-2 w-full" />
+              <div className="skeleton h-9 w-full" />
+            </div>
+          ))}
         {(goals.data ?? []).map((g) => {
           const ratio = Math.min(1, Number(g.currentAmount) / Number(g.targetAmount));
           return (
@@ -76,8 +142,12 @@ export function GoalsPage() {
                     </div>
                   )}
                 </div>
-                <button onClick={() => remove.mutate(g.id)} className="text-muted hover:text-danger">
-                  ✕
+                <button
+                  disabled={remove.isPending && remove.variables === g.id}
+                  onClick={() => remove.mutate(g.id)}
+                  className="text-muted hover:text-danger disabled:opacity-50"
+                >
+                  {remove.isPending && remove.variables === g.id ? '...' : '✕'}
                 </button>
               </div>
               <div className="text-sm flex justify-between mb-1">
@@ -158,7 +228,7 @@ export function GoalsPage() {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={create.isPending}>
-                  Create
+                  {create.isPending ? 'Creating...' : 'Create'}
                 </button>
               </div>
             </form>
@@ -205,7 +275,7 @@ export function GoalsPage() {
                   className="btn-primary"
                   disabled={contributeMut.isPending}
                 >
-                  Add
+                  {contributeMut.isPending ? 'Adding...' : 'Add'}
                 </button>
               </div>
             </form>

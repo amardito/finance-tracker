@@ -40,18 +40,54 @@ export function RecurringPage() {
 
   const create = useMutation({
     mutationFn: () => api.post('/api/recurring', form),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['recurring'] });
+      const previous = qc.getQueryData<typeof rules.data>(['recurring']);
+      const optimistic = {
+        id: `tmp-${Date.now()}`,
+        accountId: form.accountId,
+        categoryId: form.categoryId,
+        amount: form.amount,
+        type: form.type,
+        cadence: form.cadence,
+        interval: form.interval,
+        note: form.note || undefined,
+        startDate: form.startDate,
+        endDate: null,
+        nextRunAt: new Date(form.startDate).toISOString(),
+        lastRunAt: null,
+        pausedAt: null,
+      };
+      qc.setQueryData(['recurring'], (old: typeof rules.data) => [optimistic, ...(old ?? [])]);
+      setOpen(false);
+      return { previous };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['recurring'] });
       toast.success('Recurring rule created');
-      setOpen(false);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, _v, ctx) => {
+      qc.setQueryData(['recurring'], ctx?.previous);
+      toast.error(e.message);
+    },
   });
 
   const togglePause = useMutation({
     mutationFn: ({ id, paused }: { id: string; paused: boolean }) =>
       api.patch(`/api/recurring/${id}`, { paused }),
+    onMutate: async ({ id, paused }) => {
+      await qc.cancelQueries({ queryKey: ['recurring'] });
+      const previous = qc.getQueryData<typeof rules.data>(['recurring']);
+      qc.setQueryData(['recurring'], (old: typeof rules.data) =>
+        (old ?? []).map((r) => (r.id === id ? { ...r, pausedAt: paused ? new Date().toISOString() : null } : r)),
+      );
+      return { previous };
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recurring'] }),
+    onError: (e: Error, _v, ctx) => {
+      qc.setQueryData(['recurring'], ctx?.previous);
+      toast.error(e.message);
+    },
   });
 
   const runNow = useMutation({
@@ -66,9 +102,19 @@ export function RecurringPage() {
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/recurring/${id}`),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['recurring'] });
+      const previous = qc.getQueryData<typeof rules.data>(['recurring']);
+      qc.setQueryData(['recurring'], (old: typeof rules.data) => (old ?? []).filter((r) => r.id !== id));
+      return { previous };
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['recurring'] });
       toast.success('Deleted');
+    },
+    onError: (e: Error, _v, ctx) => {
+      qc.setQueryData(['recurring'], ctx?.previous);
+      toast.error(e.message);
     },
   });
 
@@ -85,6 +131,7 @@ export function RecurringPage() {
           + New rule
         </button>
       </div>
+      {rules.isFetching && <p className="text-xs text-muted inline-flex items-center gap-2"><span className="spinner" />Refreshing recurring rules...</p>}
 
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-sm">
@@ -99,6 +146,17 @@ export function RecurringPage() {
             </tr>
           </thead>
           <tbody>
+            {rules.isPending && !rules.data &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={`sk-${i}`} className="border-b border-border">
+                  <td className="p-3"><div className="skeleton h-4 w-16" /></td>
+                  <td className="p-3"><div className="skeleton h-4 w-24" /></td>
+                  <td className="p-3"><div className="skeleton h-4 w-28" /></td>
+                  <td className="p-3"><div className="skeleton h-4 w-24" /></td>
+                  <td className="p-3"><div className="skeleton h-5 w-16" /></td>
+                  <td className="p-3" />
+                </tr>
+              ))}
             {(rules.data ?? []).map((r) => (
               <tr key={r.id} className="border-b border-border">
                 <td className="p-3">{r.type}</td>
@@ -116,21 +174,27 @@ export function RecurringPage() {
                 </td>
                 <td className="p-3 text-right space-x-2">
                   <button onClick={() => runNow.mutate(r.id)} className="text-primary">
-                    Run
+                    {runNow.isPending && runNow.variables === r.id ? 'Running...' : 'Run'}
                   </button>
                   <button
+                    disabled={togglePause.isPending && togglePause.variables?.id === r.id}
                     onClick={() => togglePause.mutate({ id: r.id, paused: !r.pausedAt })}
                     className="text-muted hover:text-fg"
                   >
-                    {r.pausedAt ? 'Resume' : 'Pause'}
+                    {togglePause.isPending && togglePause.variables?.id === r.id
+                      ? 'Updating...'
+                      : r.pausedAt
+                        ? 'Resume'
+                        : 'Pause'}
                   </button>
                   <button
+                    disabled={remove.isPending && remove.variables === r.id}
                     onClick={() => {
                       if (confirm('Delete rule?')) remove.mutate(r.id);
                     }}
                     className="text-muted hover:text-danger"
                   >
-                    ✕
+                    {remove.isPending && remove.variables === r.id ? '...' : '✕'}
                   </button>
                 </td>
               </tr>
@@ -261,7 +325,7 @@ export function RecurringPage() {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={create.isPending}>
-                  Create
+                  {create.isPending ? 'Creating...' : 'Create'}
                 </button>
               </div>
             </form>

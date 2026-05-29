@@ -26,6 +26,7 @@ export function ReportsPage() {
   const summary = useSummary(range);
   const cashflow = useCashflow(range);
   const byCat = useByCategory(range);
+  const isRefreshing = summary.isFetching || cashflow.isFetching || byCat.isFetching;
 
   const downloadCsv = () => {
     const qs = new URLSearchParams({ from, to });
@@ -35,6 +36,7 @@ export function ReportsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Reports</h1>
+      {isRefreshing && <p className="text-xs text-muted inline-flex items-center gap-2"><span className="spinner" />Refreshing report data...</p>}
       <div className="card flex flex-wrap gap-3 items-end">
         <div>
           <label className="label">From</label>
@@ -72,43 +74,51 @@ export function ReportsPage() {
 
       <div className="card">
         <h3 className="font-semibold mb-2">Cashflow (cumulative net)</h3>
-        <div style={{ width: '100%', height: 300 }}>
-          <ResponsiveContainer>
-            <LineChart
-              data={cumulativeNet(cashflow.data ?? [])}
-            >
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="date" tickFormatter={(s) => s.slice(5)} fontSize={12} />
-              <YAxis fontSize={12} />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="cum" name="Cumulative net" stroke="#6366f1" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {cashflow.isPending && !cashflow.data ? (
+          <div className="skeleton" style={{ width: '100%', height: 300 }} />
+        ) : (
+          <div style={{ width: '100%', height: 300 }}>
+            <ResponsiveContainer>
+              <LineChart
+                data={cumulativeNet(cashflow.data ?? [])}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="date" tickFormatter={(s) => s.slice(5)} fontSize={12} />
+                <YAxis fontSize={12} />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="cum" name="Cumulative net" stroke="#6366f1" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       <div className="card">
         <h3 className="font-semibold mb-2">By category</h3>
-        <div style={{ width: '100%', height: 300 }}>
-          <ResponsiveContainer>
-            <BarChart
-              data={(byCat.data ?? [])
-                .filter((r) => r.type === 'EXPENSE')
-                .map((r) => ({
-                  name: r.category?.name ?? 'Unknown',
-                  amount: Number(r.amount),
-                  color: r.category?.color ?? '#94a3b8',
-                }))}
-            >
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="name" fontSize={12} />
-              <YAxis fontSize={12} />
-              <Tooltip formatter={(v: number) => money(v, currency)} />
-              <Bar dataKey="amount" fill="#6366f1" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {byCat.isPending && !byCat.data ? (
+          <div className="skeleton" style={{ width: '100%', height: 300 }} />
+        ) : (
+          <div style={{ width: '100%', height: 300 }}>
+            <ResponsiveContainer>
+              <BarChart
+                data={(byCat.data ?? [])
+                  .filter((r) => r.type === 'EXPENSE')
+                  .map((r) => ({
+                    name: r.category?.name ?? 'Unknown',
+                    amount: Number(r.amount),
+                    color: r.category?.color ?? '#94a3b8',
+                  }))}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="name" fontSize={12} />
+                <YAxis fontSize={12} />
+                <Tooltip formatter={(v: number) => money(v, currency)} />
+                <Bar dataKey="amount" fill="#6366f1" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </div>
   );
