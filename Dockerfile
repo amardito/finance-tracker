@@ -19,12 +19,8 @@ COPY src src
 RUN pnpm build
 
 FROM nginx:1.27-alpine AS runtime
-# Default PORT for local docker-compose; Railway overrides this at runtime.
-ENV PORT=80
 COPY --from=build /app/dist /usr/share/nginx/html
-# Template gets envsubst'd into /etc/nginx/conf.d/*.conf at container start by nginx's official entrypoint.
-COPY nginx.conf /etc/nginx/templates/default.conf.template
-# Drop stock default.conf so it doesn't shadow our template-generated one on port 80.
-RUN rm -f /etc/nginx/conf.d/default.conf
+# Install our static nginx.conf, replacing the stock default that ships in the image.
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
