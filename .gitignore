@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+.next
+coverage
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.vscode
+.idea
+*.tsbuildinfo
+.pnpm-store
+.pnpm-debug.log*
