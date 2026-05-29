@@ -12,7 +12,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+RUN --mount=type=cache,id=s/ft-api-pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile || pnpm install
 
 # Build shared + api
