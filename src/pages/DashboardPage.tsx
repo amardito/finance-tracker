@@ -42,7 +42,7 @@ export function DashboardPage() {
   const budgets = useBudgetProgress();
   const recent = useTransactions({ limit: 8, page: 1 });
   const isRefreshing = [accounts, summary, cashflow, byCat, budgets, recent].some((q) => q.isFetching);
-  const [cashflowView, setCashflowView] = useState<'weeks' | 'week' | 'month-line'>('weeks');
+  const [cashflowView, setCashflowView] = useState<'weeks' | 'week' | 'month-line'>('month-line');
   const [selectedWeek, setSelectedWeek] = useState<1 | 2 | 3 | 4 | null>(null);
 
   const expenseCats = (byCat.data ?? []).filter((r) => r.type === 'EXPENSE');
