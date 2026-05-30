@@ -25,8 +25,8 @@ export const useAuth = create<AuthState>((set) => ({
   loading: true,
   load: async () => {
     try {
-      await api.csrfBootstrap();
-      const user = await api.get<AuthUser>('/api/auth/me');
+      // /me is a GET so it does not require CSRF; bootstrap CSRF in parallel.
+      const [user] = await Promise.all([api.get<AuthUser>('/api/auth/me'), api.csrfBootstrap()]);
       set({ user, loading: false });
     } catch {
       set({ user: null, loading: false });
