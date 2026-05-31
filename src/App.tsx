@@ -25,6 +25,12 @@ const ReportsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
+const OnboardingPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })),
+);
+const ReviewQueuePage = lazy(() =>
+  import('./pages/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })),
+);
 
 function PageFallback() {
   return (
@@ -76,6 +82,8 @@ export function App() {
           <Route path="/goals" element={<GoalsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/assistant/review" element={<ReviewQueuePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
