@@ -10,11 +10,14 @@ import {
   useAuth,
 } from '../lib/auth';
 import { api } from '../lib/api';
+import { useNavigate } from 'react-router-dom';
+import { isOnboardingPending, markOnboardingPending } from './OnboardingPage';
 
 type Mode = 'list' | 'generate' | 'sync';
 
 export function LoginPage() {
   const { loginWithToken, generateToken } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('list');
   const [saved, setSaved] = useState<SavedToken[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +38,7 @@ export function LoginPage() {
     try {
       await loginWithToken(token);
       toast.success('Signed in');
+      if (isOnboardingPending()) navigate('/onboarding');
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -47,6 +51,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       const res = await generateToken(labelInput || undefined);
+      markOnboardingPending();
       setGenerated(res.token);
       const next = addSavedToken(res.token, labelInput || undefined);
       setSaved(next);

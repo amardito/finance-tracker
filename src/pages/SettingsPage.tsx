@@ -6,6 +6,7 @@ import { addSavedToken, useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { money } from '../lib/format';
 import { MoneyInput } from '../components/MoneyInput';
+import { Link } from 'react-router-dom';
 
 type Tab = 'accounts' | 'categories' | 'tags' | 'profile';
 
@@ -13,7 +14,12 @@ export function SettingsPage() {
   const [tab, setTab] = useState<Tab>('accounts');
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-semibold">Settings</h1>
+        <Link to="/onboarding" className="btn-secondary self-start sm:self-auto">
+          Setup assistant
+        </Link>
+      </div>
       <div className="flex gap-2 border-b border-border">
         {(['accounts', 'categories', 'tags', 'profile'] as Tab[]).map((t) => (
           <button

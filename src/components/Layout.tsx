@@ -10,6 +10,7 @@ const navItems = [
   { to: '/recurring', label: 'Recurring' },
   { to: '/goals', label: 'Goals' },
   { to: '/reports', label: 'Reports' },
+  { to: '/assistant/review', label: 'Review' },
   { to: '/settings', label: 'Settings' },
 ];
 

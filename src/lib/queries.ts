@@ -80,6 +80,66 @@ export interface Goal {
   contributions: { id: string; amount: string; date: string; note?: string }[];
 }
 
+export interface LocalizedText {
+  id: string;
+  en: string;
+}
+
+export interface SetupTemplate {
+  id: string;
+  version: number;
+  localeDefault: 'id' | 'en';
+  name: LocalizedText;
+  description: LocalizedText;
+  appliesTo: string[];
+  accounts: { key: string; name: LocalizedText; type: string; purpose?: string }[];
+  categories: {
+    key: string;
+    name: LocalizedText;
+    type: 'INCOME' | 'EXPENSE';
+    color: string;
+    icon?: string;
+  }[];
+  tags: { key: string; name: string; color: string }[];
+  recurringRules: {
+    key: string;
+    enabledByDefault: boolean;
+    type: 'INCOME' | 'EXPENSE';
+    cadence: string;
+    interval: number;
+    accountKey?: string;
+    categoryKey: string;
+    note: LocalizedText;
+  }[];
+  defaults: {
+    defaultCurrency: string;
+    defaultSpendingAccountKey?: string;
+    defaultIncomeAccountKey?: string;
+    categoryFallbacks: { income: string; expense: string };
+  };
+  insightPriorities: string[];
+  exampleCommands: LocalizedText[];
+}
+
+export interface AssistantProposal {
+  id: string;
+  actionType: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'EXECUTED' | 'FAILED';
+  sourceChannel: string;
+  clawMode: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  confidence?: Record<string, unknown> | null;
+  payload: Record<string, unknown>;
+  summary: string;
+  expiresAt?: string | null;
+  executedAt?: string | null;
+  failureReason?: string | null;
+  resultEntity?: string | null;
+  resultEntityId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function useAccounts() {
   return useQuery({
     queryKey: ['accounts'],
@@ -135,6 +195,27 @@ export function useGoals() {
   return useQuery({
     queryKey: ['goals'],
     queryFn: () => api.get<Goal[]>('/api/goals'),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useSetupTemplates() {
+  return useQuery({
+    queryKey: ['setup', 'templates'],
+    queryFn: () => api.get<{ items: SetupTemplate[] }>('/api/setup/templates'),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAssistantProposals(params: { status?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set('status', params.status);
+  return useQuery({
+    queryKey: ['assistant', 'proposals', qs.toString()],
+    queryFn: () =>
+      api.get<{ total: number; page: number; limit: number; items: AssistantProposal[] }>(
+        `/api/assistant/proposals?${qs.toString()}`,
+      ),
     placeholderData: keepPreviousData,
   });
 }
